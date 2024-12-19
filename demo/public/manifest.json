@@ -11,20 +11,8 @@
       "purpose": "any"
     },
     {
-      "src": "/static/icons/favicon-384x384.png",
-      "sizes": "384x384",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
       "src": "/static/icons/favicon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/static/icons/favicon-1024x1024.png",
-      "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any"
     },
