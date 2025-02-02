@@ -214,6 +214,7 @@ class ZWaveJSNodeConfig extends LitElement {
             <zwave_js-custom-param
               .hass=${this.hass}
               .deviceId=${this.deviceId}
+              @new-value=${this._handleNewValue}
             ></zwave_js-custom-param>
           </ha-card>
         </ha-config-section>
@@ -389,6 +390,10 @@ class ZWaveJSNodeConfig extends LitElement {
     return false;
   }
 
+  private _handleNewValue() {
+    this._fetchData();
+  }
+
   private _switchToggled(ev) {
     this._setResult(ev.target.key, undefined);
     this._updateConfigParameter(ev.target, ev.detail.value ? 1 : 0);
@@ -538,7 +543,7 @@ class ZWaveJSNodeConfig extends LitElement {
 
       await this._fetchData();
       progressButton.actionSuccess();
-    } catch (err: any) {
+    } catch (_err: any) {
       fireEvent(this, "hass-notification", {
         message: this.hass.localize(
           "ui.panel.config.zwave_js.node_config.reset_to_default.dialog.text_error"

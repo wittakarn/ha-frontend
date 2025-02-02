@@ -293,6 +293,8 @@ export class HaVoiceAssistantSetupStepLocal extends LitElement {
 
     if (preferredPipeline) {
       if (
+        preferredPipeline.conversation_engine ===
+          "conversation.home_assistant" &&
         preferredPipeline.tts_engine &&
         ttsEntityIds.includes(preferredPipeline.tts_engine) &&
         preferredPipeline.stt_engine &&
@@ -311,6 +313,7 @@ export class HaVoiceAssistantSetupStepLocal extends LitElement {
 
     let localPipeline = pipelines.pipelines.find(
       (pipeline) =>
+        pipeline.conversation_engine === "conversation.home_assistant" &&
         pipeline.tts_engine &&
         ttsEntityIds.includes(pipeline.tts_engine) &&
         pipeline.stt_engine &&
@@ -365,7 +368,7 @@ export class HaVoiceAssistantSetupStepLocal extends LitElement {
     let i = 1;
     while (
       pipelines.pipelines.find(
-        // eslint-disable-next-line @typescript-eslint/no-loop-func
+        // eslint-disable-next-line no-loop-func
         (pipeline) => pipeline.name === pipelineName
       )
     ) {
@@ -388,7 +391,7 @@ export class HaVoiceAssistantSetupStepLocal extends LitElement {
     });
   }
 
-  private async _findEntitiesAndCreatePipeline(tryNo: number = 0) {
+  private async _findEntitiesAndCreatePipeline(tryNo = 0) {
     this._findLocalEntities();
     if (!this._localTts?.length || !this._localStt?.length) {
       if (tryNo > 3) {

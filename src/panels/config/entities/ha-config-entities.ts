@@ -23,7 +23,7 @@ import { ifDefined } from "lit/directives/if-defined";
 import { styleMap } from "lit/directives/style-map";
 import memoize from "memoize-one";
 import { computeCssColor } from "../../../common/color/compute-color";
-import { formatShortDateTime } from "../../../common/datetime/format_date_time";
+import { formatShortDateTimeWithConditionalYear } from "../../../common/datetime/format_date_time";
 import { storage } from "../../../common/decorators/storage";
 import type { HASSDomEvent } from "../../../common/dom/fire_event";
 import { computeDomain } from "../../../common/entity/compute_domain";
@@ -410,7 +410,7 @@ export class HaConfigEntities extends SubscribeMixin(LitElement) {
         minWidth: "128px",
         template: (entry) =>
           entry.created_at
-            ? formatShortDateTime(
+            ? formatShortDateTimeWithConditionalYear(
                 new Date(entry.created_at * 1000),
                 this.hass.locale,
                 this.hass.config
@@ -425,7 +425,7 @@ export class HaConfigEntities extends SubscribeMixin(LitElement) {
         minWidth: "128px",
         template: (entry) =>
           entry.modified_at
-            ? formatShortDateTime(
+            ? formatShortDateTimeWithConditionalYear(
                 new Date(entry.modified_at * 1000),
                 this.hass.locale,
                 this.hass.config
@@ -694,7 +694,7 @@ export class HaConfigEntities extends SubscribeMixin(LitElement) {
 
     const includeAddDeviceFab =
       filteredDomains.size === 1 &&
-      (PROTOCOL_INTEGRATIONS as ReadonlyArray<string>).includes(
+      (PROTOCOL_INTEGRATIONS as readonly string[]).includes(
         [...filteredDomains][0]
       );
 
@@ -729,7 +729,7 @@ export class HaConfigEntities extends SubscribeMixin(LitElement) {
         </ha-md-menu-item>`;
       })}
       <ha-md-divider role="separator" tabindex="-1"></ha-md-divider>
-      <ha-md-menu-item @click=${this._bulkCreateLabel}>
+      <ha-md-menu-item .clickAction=${this._bulkCreateLabel}>
         <div slot="headline">
           ${this.hass.localize("ui.panel.config.labels.add_label")}
         </div></ha-md-menu-item
@@ -816,7 +816,9 @@ ${
         </ha-assist-chip>`
       : html`<ha-icon-button
           .path=${mdiDotsVertical}
-          .label=${"ui.panel.config.automation.picker.bulk_action"}
+          .label=${this.hass.localize(
+            "ui.panel.config.automation.picker.bulk_action"
+          )}
           slot="trigger"
         ></ha-icon-button>`
   }
@@ -842,7 +844,7 @@ ${
       : nothing
   }
 
-  <ha-md-menu-item @click=${this._enableSelected}>
+  <ha-md-menu-item .clickAction=${this._enableSelected}>
     <ha-svg-icon slot="start" .path=${mdiToggleSwitch}></ha-svg-icon>
     <div slot="headline">
       ${this.hass.localize(
@@ -850,7 +852,7 @@ ${
       )}
     </div>
   </ha-md-menu-item>
-  <ha-md-menu-item @click=${this._disableSelected}>
+  <ha-md-menu-item .clickAction=${this._disableSelected}>
     <ha-svg-icon
       slot="start"
       .path=${mdiToggleSwitchOffOutline}
@@ -863,7 +865,7 @@ ${
   </ha-md-menu-item>
   <ha-md-divider role="separator" tabindex="-1"></ha-md-divider>
 
-  <ha-md-menu-item @click=${this._unhideSelected}>
+  <ha-md-menu-item .clickAction=${this._unhideSelected}>
     <ha-svg-icon
       slot="start"
       .path=${mdiEye}
@@ -874,7 +876,7 @@ ${
       )}
     </div>
   </ha-md-menu-item>
-  <ha-md-menu-item @click=${this._hideSelected}>
+  <ha-md-menu-item .clickAction=${this._hideSelected}>
     <ha-svg-icon
       slot="start"
       .path=${mdiEyeOff}
@@ -887,7 +889,7 @@ ${
   </ha-md-menu-item>
   <ha-md-divider role="separator" tabindex="-1"></ha-md-divider>
 
-  <ha-md-menu-item @click=${this._removeSelected} class="warning">
+  <ha-md-menu-item .clickAction=${this._removeSelected} class="warning">
     <ha-svg-icon
       slot="start"
       .path=${mdiDelete}
@@ -904,7 +906,9 @@ ${
           Array.isArray(this._filters.config_entry) &&
           this._filters.config_entry?.length
             ? html`<ha-alert slot="filter-pane">
-                Filtering by config entry
+                ${this.hass.localize(
+                  "ui.panel.config.entities.picker.filtering_by_config_entry"
+                )}
                 ${this._entries?.find(
                   (entry) => entry.entry_id === this._filters.config_entry![0]
                 )?.title || this._filters.config_entry[0]}
@@ -1119,7 +1123,7 @@ ${
     this._selected = ev.detail.value;
   }
 
-  private async _enableSelected() {
+  private _enableSelected = async () => {
     showConfirmationDialog(this, {
       title: this.hass.localize(
         "ui.panel.config.entities.picker.enable_selected.confirm_title",
@@ -1187,9 +1191,9 @@ ${
         }
       },
     });
-  }
+  };
 
-  private _disableSelected() {
+  private _disableSelected = () => {
     showConfirmationDialog(this, {
       title: this.hass.localize(
         "ui.panel.config.entities.picker.disable_selected.confirm_title",
@@ -1209,9 +1213,9 @@ ${
         this._clearSelection();
       },
     });
-  }
+  };
 
-  private _hideSelected() {
+  private _hideSelected = () => {
     showConfirmationDialog(this, {
       title: this.hass.localize(
         "ui.panel.config.entities.picker.hide_selected.confirm_title",
@@ -1231,16 +1235,16 @@ ${
         this._clearSelection();
       },
     });
-  }
+  };
 
-  private _unhideSelected() {
+  private _unhideSelected = () => {
     this._selected.forEach((entity) =>
       updateEntityRegistryEntry(this.hass, entity, {
         hidden_by: null,
       })
     );
     this._clearSelection();
-  }
+  };
 
   private async _handleBulkLabel(ev) {
     const label = ev.currentTarget.value;
@@ -1282,7 +1286,7 @@ ${rejected
     }
   }
 
-  private _bulkCreateLabel() {
+  private _bulkCreateLabel = () => {
     showLabelDetailDialog(this, {
       createEntry: async (values) => {
         const label = await createLabelRegistryEntry(this.hass, values);
@@ -1290,9 +1294,9 @@ ${rejected
         return label;
       },
     });
-  }
+  };
 
-  private async _removeSelected() {
+  private _removeSelected = async () => {
     if (!this._entities || !this.hass) {
       return;
     }
@@ -1365,7 +1369,7 @@ ${rejected
         this._clearSelection();
       },
     });
-  }
+  };
 
   private _clearSelection() {
     this._dataTable.clearSelection();
@@ -1395,7 +1399,7 @@ ${rejected
       );
     if (
       filteredDomains.size === 1 &&
-      (PROTOCOL_INTEGRATIONS as ReadonlyArray<string>).includes(
+      (PROTOCOL_INTEGRATIONS as readonly string[]).includes(
         [...filteredDomains][0]
       )
     ) {

@@ -404,7 +404,7 @@ const tryDescribeTrigger = (
       );
     }
 
-    const invalidParts: Array<"seconds" | "minutes" | "hours"> = [];
+    const invalidParts: ("seconds" | "minutes" | "hours")[] = [];
 
     let secondsChoice: "every" | "every_interval" | "on_the_xth" | "other" =
       "other";
@@ -737,18 +737,22 @@ const tryDescribeTrigger = (
       ? computeStateName(hass.states[trigger.entity_id])
       : trigger.entity_id;
 
-    let offsetChoice = trigger.offset.startsWith("-") ? "before" : "after";
-    let offset: string | string[] = trigger.offset.startsWith("-")
-      ? trigger.offset.substring(1).split(":")
-      : trigger.offset.split(":");
-    const duration = {
-      hours: offset.length > 0 ? +offset[0] : 0,
-      minutes: offset.length > 1 ? +offset[1] : 0,
-      seconds: offset.length > 2 ? +offset[2] : 0,
-    };
-    offset = formatDurationLong(hass.locale, duration);
-    if (offset === "") {
-      offsetChoice = "other";
+    let offsetChoice = "other";
+    let offset: string | string[] = "";
+    if (trigger.offset) {
+      offsetChoice = trigger.offset.startsWith("-") ? "before" : "after";
+      offset = trigger.offset.startsWith("-")
+        ? trigger.offset.substring(1).split(":")
+        : trigger.offset.split(":");
+      const duration = {
+        hours: offset.length > 0 ? +offset[0] : 0,
+        minutes: offset.length > 1 ? +offset[1] : 0,
+        seconds: offset.length > 2 ? +offset[2] : 0,
+      };
+      offset = formatDurationLong(hass.locale, duration);
+      if (offset === "") {
+        offsetChoice = "other";
+      }
     }
 
     return hass.localize(
@@ -811,7 +815,7 @@ const tryDescribeCondition = (
   }
 
   if (!condition.condition) {
-    const shorthands: Array<"and" | "or" | "not"> = ["and", "or", "not"];
+    const shorthands: ("and" | "or" | "not")[] = ["and", "or", "not"];
     for (const key of shorthands) {
       if (!(key in condition)) {
         continue;

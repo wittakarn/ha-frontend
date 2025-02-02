@@ -319,7 +319,6 @@ class AddIntegrationDialog extends LitElement {
       open
       @closed=${this.closeDialog}
       scrimClickAction
-      escapeKeyAction
       hideActions
       .heading=${createCloseHeading(
         this.hass,
@@ -449,12 +448,14 @@ class AddIntegrationDialog extends LitElement {
           >
             <lit-virtualizer
               scroller
+              tabindex="-1"
               class="ha-scrollbar"
               style=${styleMap({
                 width: `${this._width}px`,
                 height: this._narrow ? "calc(100vh - 184px)" : "500px",
               })}
               @click=${this._integrationPicked}
+              @keypress=${this._handleKeyPress}
               .items=${integrations}
               .keyFunction=${this._keyFunction}
               .renderItem=${this._renderRow}
@@ -478,6 +479,7 @@ class AddIntegrationDialog extends LitElement {
         brand
         .hass=${this.hass}
         .integration=${integration}
+        tabindex="0"
       >
       </ha-integration-list-item>
     `;
@@ -534,6 +536,12 @@ class AddIntegrationDialog extends LitElement {
     this._handleIntegrationPicked(listItem.integration);
   }
 
+  private _handleKeyPress(ev) {
+    if (ev.key === "Enter") {
+      this._integrationPicked(ev);
+    }
+  }
+
   private async _handleIntegrationPicked(integration: IntegrationListItem) {
     if (integration.supported_by) {
       this._supportedBy(integration);
@@ -555,7 +563,7 @@ class AddIntegrationDialog extends LitElement {
     if (integration.integrations) {
       let domains = integration.domains || [];
       if (integration.domain === "apple") {
-        // we show discoverd homekit devices in their own brand section, dont show them at apple
+        // we show discovered homekit devices in their own brand section, dont show them in apple
         domains = domains.filter((domain) => domain !== "homekit_controller");
       }
       this._fetchFlowsInProgress(domains);
@@ -564,7 +572,7 @@ class AddIntegrationDialog extends LitElement {
     }
 
     if (
-      (PROTOCOL_INTEGRATIONS as ReadonlyArray<string>).includes(
+      (PROTOCOL_INTEGRATIONS as readonly string[]).includes(
         integration.domain
       ) &&
       isComponentLoaded(this.hass, integration.domain)

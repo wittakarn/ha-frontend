@@ -296,12 +296,12 @@ export class HaConfigDeviceDashboard extends SubscribeMixin(LitElement) {
         deviceEntityLookup[entity.device_id].push(entity);
       }
 
-      const entryLookup: { [entryId: string]: ConfigEntry } = {};
+      const entryLookup: Record<string, ConfigEntry> = {};
       for (const entry of entries) {
         entryLookup[entry.entry_id] = entry;
       }
 
-      const manifestLookup: { [domain: string]: IntegrationManifest } = {};
+      const manifestLookup: Record<string, IntegrationManifest> = {};
       for (const manifest of manifests) {
         manifestLookup[manifest.domain] = manifest;
       }
@@ -749,7 +749,9 @@ export class HaConfigDeviceDashboard extends SubscribeMixin(LitElement) {
         ${Array.isArray(this._filters.config_entry?.value) &&
         this._filters.config_entry?.value.length
           ? html`<ha-alert slot="filter-pane">
-              Filtering by config entry
+              ${this.hass.localize(
+                "ui.panel.config.devices.filtering_by_config_entry"
+              )}
               ${this.entries?.find(
                 (entry) =>
                   entry.entry_id === this._filters.config_entry!.value![0]
@@ -845,7 +847,9 @@ export class HaConfigDeviceDashboard extends SubscribeMixin(LitElement) {
                   </ha-assist-chip>`
                 : html`<ha-icon-button
                     .path=${mdiDotsVertical}
-                    .label=${"ui.panel.config.automation.picker.bulk_action"}
+                    .label=${this.hass.localize(
+                      "ui.panel.config.automation.picker.bulk_action"
+                    )}
                     slot="trigger"
                   ></ha-icon-button>`}
               ${this.narrow
@@ -945,7 +949,7 @@ export class HaConfigDeviceDashboard extends SubscribeMixin(LitElement) {
 
     if (
       filteredDomains.size === 1 &&
-      (PROTOCOL_INTEGRATIONS as ReadonlyArray<string>).includes(
+      (PROTOCOL_INTEGRATIONS as readonly string[]).includes(
         [...filteredDomains][0]
       )
     ) {

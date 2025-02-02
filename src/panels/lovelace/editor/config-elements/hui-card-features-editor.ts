@@ -1,6 +1,5 @@
 import { mdiDelete, mdiDrag, mdiPencil, mdiPlus } from "@mdi/js";
 import type { HassEntity } from "home-assistant-js-websocket";
-import type { CSSResultGroup } from "lit";
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators";
 import { repeat } from "lit/directives/repeat";
@@ -38,6 +37,7 @@ import { supportsLightBrightnessCardFeature } from "../../card-features/hui-ligh
 import { supportsLightColorTempCardFeature } from "../../card-features/hui-light-color-temp-card-feature";
 import { supportsLockCommandsCardFeature } from "../../card-features/hui-lock-commands-card-feature";
 import { supportsLockOpenDoorCardFeature } from "../../card-features/hui-lock-open-door-card-feature";
+import { supportsMediaPlayerVolumeSliderCardFeature } from "../../card-features/hui-media-player-volume-slider-card-feature";
 import { supportsNumericInputCardFeature } from "../../card-features/hui-numeric-input-card-feature";
 import { supportsSelectOptionsCardFeature } from "../../card-features/hui-select-options-card-feature";
 import { supportsTargetHumidityCardFeature } from "../../card-features/hui-target-humidity-card-feature";
@@ -71,6 +71,7 @@ const UI_FEATURE_TYPES = [
   "light-color-temp",
   "lock-commands",
   "lock-open-door",
+  "media-player-volume-slider",
   "numeric-input",
   "select-options",
   "target-humidity",
@@ -123,6 +124,7 @@ const SUPPORTS_FEATURE_TYPES: Record<
   "light-color-temp": supportsLightColorTempCardFeature,
   "lock-commands": supportsLockCommandsCardFeature,
   "lock-open-door": supportsLockOpenDoorCardFeature,
+  "media-player-volume-slider": supportsMediaPlayerVolumeSliderCardFeature,
   "numeric-input": supportsNumericInputCardFeature,
   "select-options": supportsSelectOptionsCardFeature,
   "target-humidity": supportsTargetHumidityCardFeature,
@@ -397,61 +399,59 @@ export class HuiCardFeaturesEditor extends LitElement {
     });
   }
 
-  static get styles(): CSSResultGroup {
-    return css`
-      :host {
-        display: flex !important;
-        flex-direction: column;
-      }
-      ha-button-menu {
-        margin-top: 8px;
-      }
-      .feature {
-        display: flex;
-        align-items: center;
-      }
-      .feature .handle {
-        cursor: move; /* fallback if grab cursor is unsupported */
-        cursor: grab;
-        padding-right: 8px;
-        padding-inline-end: 8px;
-        padding-inline-start: initial;
-        direction: var(--direction);
-      }
-      .feature .handle > * {
-        pointer-events: none;
-      }
+  static styles = css`
+    :host {
+      display: flex !important;
+      flex-direction: column;
+    }
+    ha-button-menu {
+      margin-top: 8px;
+    }
+    .feature {
+      display: flex;
+      align-items: center;
+    }
+    .feature .handle {
+      cursor: move; /* fallback if grab cursor is unsupported */
+      cursor: grab;
+      padding-right: 8px;
+      padding-inline-end: 8px;
+      padding-inline-start: initial;
+      direction: var(--direction);
+    }
+    .feature .handle > * {
+      pointer-events: none;
+    }
 
-      .feature-content {
-        height: 60px;
-        font-size: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-grow: 1;
-      }
+    .feature-content {
+      height: 60px;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-grow: 1;
+    }
 
-      .feature-content div {
-        display: flex;
-        flex-direction: column;
-      }
+    .feature-content div {
+      display: flex;
+      flex-direction: column;
+    }
 
-      .remove-icon,
-      .edit-icon {
-        --mdc-icon-button-size: 36px;
-        color: var(--secondary-text-color);
-      }
+    .remove-icon,
+    .edit-icon {
+      --mdc-icon-button-size: 36px;
+      color: var(--secondary-text-color);
+    }
 
-      .secondary {
-        font-size: 12px;
-        color: var(--secondary-text-color);
-      }
+    .secondary {
+      font-size: 12px;
+      color: var(--secondary-text-color);
+    }
 
-      li[divider] {
-        border-bottom-color: var(--divider-color);
-      }
-    `;
-  }
+    li[divider] {
+      border-bottom-color: var(--divider-color);
+    }
+  `;
 }
 
 declare global {

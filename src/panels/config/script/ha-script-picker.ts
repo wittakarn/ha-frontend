@@ -25,7 +25,7 @@ import { styleMap } from "lit/directives/style-map";
 import memoizeOne from "memoize-one";
 import { computeCssColor } from "../../../common/color/compute-color";
 import { isComponentLoaded } from "../../../common/config/is_component_loaded";
-import { formatShortDateTime } from "../../../common/datetime/format_date_time";
+import { formatShortDateTimeWithConditionalYear } from "../../../common/datetime/format_date_time";
 import { relativeTime } from "../../../common/datetime/relative_time";
 import { storage } from "../../../common/decorators/storage";
 import type { HASSDomEvent } from "../../../common/dom/fire_event";
@@ -304,7 +304,7 @@ class HaScriptPicker extends SubscribeMixin(LitElement) {
             return html`
               ${script.last_triggered
                 ? dayDifference > 3
-                  ? formatShortDateTime(
+                  ? formatShortDateTimeWithConditionalYear(
                       date,
                       this.hass.locale,
                       this.hass.config
@@ -527,7 +527,7 @@ class HaScriptPicker extends SubscribeMixin(LitElement) {
           { number: scripts.length }
         )}
         has-filters
-        .initialGroupColumn=${this._activeGrouping || "category"}
+        .initialGroupColumn=${this._activeGrouping ?? "category"}
         .initialCollapsedGroups=${this._activeCollapsed}
         .initialSorting=${this._activeSorting}
         .columnOrder=${this._activeColumnOrder}
@@ -695,7 +695,9 @@ class HaScriptPicker extends SubscribeMixin(LitElement) {
                   </ha-assist-chip>`
                 : html`<ha-icon-button
                     .path=${mdiDotsVertical}
-                    .label=${"ui.panel.config.automation.picker.bulk_action"}
+                    .label=${this.hass.localize(
+                      "ui.panel.config.automation.picker.bulk_action"
+                    )}
                     slot="trigger"
                   ></ha-icon-button>`
             }
@@ -855,7 +857,7 @@ class HaScriptPicker extends SubscribeMixin(LitElement) {
         Array.isArray(filter.value) &&
         filter.value.length
       ) {
-        const categoryItems: Set<string> = new Set();
+        const categoryItems = new Set<string>();
         this.scripts
           .filter(
             (script) =>
@@ -879,7 +881,7 @@ class HaScriptPicker extends SubscribeMixin(LitElement) {
         Array.isArray(filter.value) &&
         filter.value.length
       ) {
-        const labelItems: Set<string> = new Set();
+        const labelItems = new Set<string>();
         this.scripts
           .filter((script) =>
             this._entityReg
@@ -1253,7 +1255,7 @@ ${rejected
   }
 
   private _handleGroupingChanged(ev: CustomEvent) {
-    this._activeGrouping = ev.detail.value;
+    this._activeGrouping = ev.detail.value ?? "";
   }
 
   private _handleCollapseChanged(ev: CustomEvent) {

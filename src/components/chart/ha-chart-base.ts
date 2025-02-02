@@ -1,546 +1,491 @@
-import type {
-  Chart,
-  ChartType,
-  ChartData,
-  ChartOptions,
-  TooltipModel,
-} from "chart.js";
-import type { CSSResultGroup, PropertyValues } from "lit";
+import type { PropertyValues } from "lit";
 import { css, html, nothing, LitElement } from "lit";
 import { customElement, property, state } from "lit/decorators";
-import { classMap } from "lit/directives/class-map";
 import { styleMap } from "lit/directives/style-map";
+import { mdiRestart } from "@mdi/js";
+import type { EChartsType } from "echarts/core";
+import type { DataZoomComponentOption } from "echarts/components";
+import { ResizeController } from "@lit-labs/observers/resize-controller";
+import type {
+  ECElementEvent,
+  XAXisOption,
+  YAXisOption,
+} from "echarts/types/dist/shared";
+import { consume } from "@lit-labs/context";
 import { fireEvent } from "../../common/dom/fire_event";
-import { clamp } from "../../common/number/clamp";
 import type { HomeAssistant } from "../../types";
-import { debounce } from "../../common/util/debounce";
+import { isMac } from "../../util/is_mac";
+import "../ha-icon-button";
+import type { ECOption } from "../../resources/echarts";
+import { listenMediaQuery } from "../../common/dom/media_query";
+import type { Themes } from "../../data/ws-themes";
+import { themesContext } from "../../data/context";
+import { getAllGraphColors } from "../../common/color/colors";
 
 export const MIN_TIME_BETWEEN_UPDATES = 60 * 5 * 1000;
 
-export interface ChartResizeOptions {
-  aspectRatio?: number;
-  height?: number;
-  width?: number;
-}
-
-interface Tooltip
-  extends Omit<TooltipModel<any>, "tooltipPosition" | "hasValue" | "getProps"> {
-  top: string;
-  left: string;
-}
-
-export interface ChartDatasetExtra {
-  show_legend?: boolean;
-  legend_label?: string;
-}
-
 @customElement("ha-chart-base")
 export class HaChartBase extends LitElement {
-  public chart?: Chart;
+  public chart?: EChartsType;
 
   @property({ attribute: false }) public hass!: HomeAssistant;
 
-  @property({ attribute: "chart-type", reflect: true })
-  public chartType: ChartType = "line";
+  @property({ attribute: false }) public data: ECOption["series"] = [];
 
-  @property({ attribute: false }) public data: ChartData = { datasets: [] };
+  @property({ attribute: false }) public options?: ECOption;
 
-  @property({ attribute: false }) public extraData?: ChartDatasetExtra[];
-
-  @property({ attribute: false }) public options?: ChartOptions;
-
-  @property({ attribute: false }) public plugins?: any[];
-
-  @property({ type: Number }) public height?: number;
-
-  @property({ attribute: false, type: Number }) public paddingYAxis = 0;
+  @property({ type: String }) public height?: string;
 
   @property({ attribute: "external-hidden", type: Boolean })
   public externalHidden = false;
 
-  @state() private _chartHeight?: number;
+  @state()
+  @consume({ context: themesContext, subscribe: true })
+  _themes!: Themes;
 
-  @state() private _tooltip?: Tooltip;
+  @state() private _isZoomed = false;
 
-  @state() private _hiddenDatasets: Set<number> = new Set();
+  private _modifierPressed = false;
 
-  private _paddingUpdateCount = 0;
+  private _isTouchDevice = "ontouchstart" in window;
 
-  private _paddingUpdateLock = false;
+  // @ts-ignore
+  private _resizeController = new ResizeController(this, {
+    callback: () => this.chart?.resize(),
+  });
 
-  private _paddingYAxisInternal = 0;
+  private _loading = false;
 
-  private _datasetOrder: number[] = [];
+  private _reducedMotion = false;
+
+  private _listeners: (() => void)[] = [];
 
   public disconnectedCallback() {
     super.disconnectedCallback();
-    this._releaseCanvas();
+    while (this._listeners.length) {
+      this._listeners.pop()!();
+    }
+    this.chart?.dispose();
   }
 
   public connectedCallback() {
     super.connectedCallback();
     if (this.hasUpdated) {
-      this._releaseCanvas();
       this._setupChart();
     }
-  }
 
-  public updateChart = (
-    mode:
-      | "resize"
-      | "reset"
-      | "none"
-      | "hide"
-      | "show"
-      | "default"
-      | "active"
-      | undefined
-  ): void => {
-    this.chart?.update(mode);
-  };
-
-  public resize = (options?: ChartResizeOptions): void => {
-    if (options?.aspectRatio && !options.height) {
-      options.height = Math.round(
-        (options.width ?? this.clientWidth) / options.aspectRatio
-      );
-    } else if (options?.aspectRatio && !options.width) {
-      options.width = Math.round(
-        (options.height ?? this.clientHeight) * options.aspectRatio
-      );
-    }
-    this.chart?.resize(
-      options?.width ?? this.clientWidth,
-      options?.height ?? this.clientHeight
+    this._listeners.push(
+      listenMediaQuery("(prefers-reduced-motion)", (matches) => {
+        this._reducedMotion = matches;
+        this.chart?.setOption({ animation: !this._reducedMotion });
+      })
     );
-  };
+
+    // Add keyboard event listeners
+    const handleKeyDown = (ev: KeyboardEvent) => {
+      if ((isMac && ev.metaKey) || (!isMac && ev.ctrlKey)) {
+        this._modifierPressed = true;
+        if (!this.options?.dataZoom) {
+          this.chart?.setOption({
+            dataZoom: this._getDataZoomConfig(),
+          });
+        }
+      }
+    };
+
+    const handleKeyUp = (ev: KeyboardEvent) => {
+      if ((isMac && ev.key === "Meta") || (!isMac && ev.key === "Control")) {
+        this._modifierPressed = false;
+        if (!this.options?.dataZoom) {
+          this.chart?.setOption({
+            dataZoom: this._getDataZoomConfig(),
+          });
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    this._listeners.push(
+      () => window.removeEventListener("keydown", handleKeyDown),
+      () => window.removeEventListener("keyup", handleKeyUp)
+    );
+  }
 
   protected firstUpdated() {
     this._setupChart();
-    this.data.datasets.forEach((dataset, index) => {
-      if (dataset.hidden) {
-        this._hiddenDatasets.add(index);
-      }
-    });
   }
-
-  public shouldUpdate(changedProps: PropertyValues): boolean {
-    if (
-      this._paddingUpdateLock &&
-      changedProps.size === 1 &&
-      changedProps.has("paddingYAxis")
-    ) {
-      return false;
-    }
-    return true;
-  }
-
-  private _debouncedClearUpdates = debounce(
-    () => {
-      this._paddingUpdateCount = 0;
-    },
-    2000,
-    false
-  );
 
   public willUpdate(changedProps: PropertyValues): void {
     super.willUpdate(changedProps);
 
-    if (!this._paddingUpdateLock) {
-      this._paddingYAxisInternal = this.paddingYAxis;
-      if (changedProps.size === 1 && changedProps.has("paddingYAxis")) {
-        this._paddingUpdateCount++;
-        if (this._paddingUpdateCount > 300) {
-          this._paddingUpdateLock = true;
-          // eslint-disable-next-line
-          console.error(
-            "Detected excessive chart padding updates, possibly an infinite loop. Disabling axis padding."
-          );
-        } else {
-          this._debouncedClearUpdates();
-        }
-      }
-    }
-
-    // put the legend labels in sorted order if provided
-    if (changedProps.has("data")) {
-      this._datasetOrder = this.data.datasets.map((_, index) => index);
-      if (this.data?.datasets.some((dataset) => dataset.order)) {
-        this._datasetOrder.sort(
-          (a, b) =>
-            (this.data.datasets[a].order || 0) -
-            (this.data.datasets[b].order || 0)
-        );
-      }
-
-      if (this.externalHidden) {
-        this._hiddenDatasets = new Set();
-        if (this.data?.datasets) {
-          this.data.datasets.forEach((dataset, index) => {
-            if (dataset.hidden) {
-              this._hiddenDatasets.add(index);
-            }
-          });
-        }
-      }
-    }
-
     if (!this.hasUpdated || !this.chart) {
       return;
     }
-    if (changedProps.has("plugins") || changedProps.has("chartType")) {
-      this._releaseCanvas();
+    if (changedProps.has("_themes")) {
       this._setupChart();
       return;
     }
     if (changedProps.has("data")) {
-      if (this._hiddenDatasets.size && !this.externalHidden) {
-        this.data.datasets.forEach((dataset, index) => {
-          dataset.hidden = this._hiddenDatasets.has(index);
-        });
-      }
-      this.chart.data = this.data;
+      this.chart.setOption(
+        { series: this.data },
+        { lazyUpdate: true, replaceMerge: ["series"] }
+      );
     }
-    if (changedProps.has("options")) {
-      this.chart.options = this._createOptions();
+    if (changedProps.has("options") || changedProps.has("_isZoomed")) {
+      this.chart.setOption(this._createOptions(), {
+        lazyUpdate: true,
+        // if we replace the whole object, it will reset the dataZoom
+        replaceMerge: [
+          "xAxis",
+          "yAxis",
+          "dataZoom",
+          "dataset",
+          "tooltip",
+          "grid",
+          "visualMap",
+        ],
+      });
     }
-    this.chart.update("none");
   }
 
   protected render() {
     return html`
-      ${this.options?.plugins?.legend?.display === true
-        ? html`<div class="chartLegend">
-            <ul>
-              ${this._datasetOrder.map((index) => {
-                const dataset = this.data.datasets[index];
-                return this.extraData?.[index]?.show_legend === false
-                  ? nothing
-                  : html`<li
-                      .datasetIndex=${index}
-                      @click=${this._legendClick}
-                      class=${classMap({
-                        hidden: this._hiddenDatasets.has(index),
-                      })}
-                      .title=${this.extraData?.[index]?.legend_label ??
-                      dataset.label}
-                    >
-                      <div
-                        class="bullet"
-                        style=${styleMap({
-                          backgroundColor: dataset.backgroundColor as string,
-                          borderColor: dataset.borderColor as string,
-                        })}
-                      ></div>
-                      <div class="label">
-                        ${this.extraData?.[index]?.legend_label ??
-                        dataset.label}
-                      </div>
-                    </li>`;
-              })}
-            </ul>
-          </div>`
-        : ""}
       <div
-        class="animationContainer"
+        class="chart-container"
         style=${styleMap({
-          height: `${this.height || this._chartHeight || 0}px`,
-          overflow: this._chartHeight ? "initial" : "hidden",
+          height: this.height ?? `${this._getDefaultHeight()}px`,
         })}
+        @wheel=${this._handleWheel}
       >
-        <div
-          class="chartContainer"
-          style=${styleMap({
-            height: `${
-              this.height ?? this._chartHeight ?? this.clientWidth / 2
-            }px`,
-            "padding-left": `${this._paddingYAxisInternal}px`,
-            "padding-right": 0,
-            "padding-inline-start": `${this._paddingYAxisInternal}px`,
-            "padding-inline-end": 0,
-          })}
-        >
-          <canvas></canvas>
-          ${this._tooltip
-            ? html`<div
-                class="chartTooltip ${classMap({
-                  [this._tooltip.yAlign]: true,
-                })}"
-                style=${styleMap({
-                  top: this._tooltip.top,
-                  left: this._tooltip.left,
-                })}
-              >
-                <div class="title">${this._tooltip.title}</div>
-                ${this._tooltip.beforeBody
-                  ? html`<div class="beforeBody">
-                      ${this._tooltip.beforeBody}
-                    </div>`
-                  : ""}
-                <div>
-                  <ul>
-                    ${this._tooltip.body.map(
-                      (item, i) =>
-                        html`<li>
-                          <div
-                            class="bullet"
-                            style=${styleMap({
-                              backgroundColor: this._tooltip!.labelColors[i]
-                                .backgroundColor as string,
-                              borderColor: this._tooltip!.labelColors[i]
-                                .borderColor as string,
-                            })}
-                          ></div>
-                          ${item.lines.join("\n")}
-                        </li>`
-                    )}
-                  </ul>
-                </div>
-                ${this._tooltip.footer.length
-                  ? html`<div class="footer">
-                      ${this._tooltip.footer.map((item) => html`${item}<br />`)}
-                    </div>`
-                  : ""}
-              </div>`
-            : ""}
-        </div>
+        <div class="chart"></div>
+        ${this._isZoomed
+          ? html`<ha-icon-button
+              class="zoom-reset"
+              .path=${mdiRestart}
+              @click=${this._handleZoomReset}
+              title=${this.hass.localize(
+                "ui.components.history_charts.zoom_reset"
+              )}
+            ></ha-icon-button>`
+          : nothing}
       </div>
     `;
   }
 
-  private _loading = false;
-
   private async _setupChart() {
     if (this._loading) return;
-    const ctx: CanvasRenderingContext2D = this.renderRoot
-      .querySelector("canvas")!
-      .getContext("2d")!;
+    const container = this.renderRoot.querySelector(".chart") as HTMLDivElement;
     this._loading = true;
     try {
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      const ChartConstructor = (await import("../../resources/chartjs")).Chart;
+      if (this.chart) {
+        this.chart.dispose();
+      }
+      const echarts = (await import("../../resources/echarts")).default;
 
-      const computedStyles = getComputedStyle(this);
+      echarts.registerTheme("custom", this._createTheme());
 
-      ChartConstructor.defaults.borderColor =
-        computedStyles.getPropertyValue("--divider-color");
-      ChartConstructor.defaults.color = computedStyles.getPropertyValue(
-        "--secondary-text-color"
-      );
-      ChartConstructor.defaults.font.family =
-        computedStyles.getPropertyValue("--mdc-typography-body1-font-family") ||
-        computedStyles.getPropertyValue("--mdc-typography-font-family") ||
-        "Roboto, Noto, sans-serif";
-
-      this.chart = new ChartConstructor(ctx, {
-        type: this.chartType,
-        data: this.data,
-        options: this._createOptions(),
-        plugins: this._createPlugins(),
+      this.chart = echarts.init(container, "custom");
+      this.chart.on("legendselectchanged", (params: any) => {
+        if (this.externalHidden) {
+          const isSelected = params.selected[params.name];
+          if (isSelected) {
+            fireEvent(this, "dataset-unhidden", { name: params.name });
+          } else {
+            fireEvent(this, "dataset-hidden", { name: params.name });
+          }
+        }
       });
+      this.chart.on("datazoom", (e: any) => {
+        const { start, end } = e.batch?.[0] ?? e;
+        this._isZoomed = start !== 0 || end !== 100;
+      });
+      this.chart.on("click", (e: ECElementEvent) => {
+        fireEvent(this, "chart-click", e);
+      });
+      this.chart.on("mousemove", (e: ECElementEvent) => {
+        if (e.componentType === "series" && e.componentSubType === "custom") {
+          // custom series do not support cursor style so we need to set it manually
+          this.chart?.getZr()?.setCursorStyle("default");
+        }
+      });
+      this.chart.setOption({ ...this._createOptions(), series: this.data });
     } finally {
       this._loading = false;
     }
   }
 
-  private _createOptions() {
+  private _getDataZoomConfig(): DataZoomComponentOption | undefined {
+    const xAxis = (this.options?.xAxis?.[0] ??
+      this.options?.xAxis) as XAXisOption;
+    const yAxis = (this.options?.yAxis?.[0] ??
+      this.options?.yAxis) as YAXisOption;
+    if (xAxis.type === "value" && yAxis.type === "category") {
+      // vertical data zoom doesn't work well in this case and horizontal is pointless
+      return undefined;
+    }
     return {
-      maintainAspectRatio: false,
+      id: "dataZoom",
+      type: "inside",
+      orient: "horizontal",
+      filterMode: "none",
+      moveOnMouseMove: this._isZoomed,
+      preventDefaultMouseMove: this._isZoomed,
+      zoomLock: !this._isTouchDevice && !this._modifierPressed,
+    };
+  }
+
+  private _createOptions(): ECOption {
+    const options = {
+      animation: !this._reducedMotion,
+      darkMode: this._themes.darkMode ?? false,
+      aria: {
+        show: true,
+      },
+      dataZoom: this._getDataZoomConfig(),
       ...this.options,
-      plugins: {
-        ...this.options?.plugins,
-        tooltip: {
-          ...this.options?.plugins?.tooltip,
-          enabled: false,
-          external: (context) => this._handleTooltip(context),
+    };
+
+    const isMobile = window.matchMedia(
+      "all and (max-width: 450px), all and (max-height: 500px)"
+    ).matches;
+    if (isMobile && options.tooltip) {
+      // mobile charts are full width so we need to confine the tooltip to the chart
+      const tooltips = Array.isArray(options.tooltip)
+        ? options.tooltip
+        : [options.tooltip];
+      tooltips.forEach((tooltip) => {
+        tooltip.confine = true;
+        tooltip.appendTo = undefined;
+      });
+      options.tooltip = tooltips;
+    }
+    return options;
+  }
+
+  private _createTheme() {
+    const style = getComputedStyle(this);
+    return {
+      color: getAllGraphColors(style),
+      backgroundColor: "transparent",
+      textStyle: {
+        color: style.getPropertyValue("--primary-text-color"),
+      },
+      title: {
+        textStyle: {
+          color: style.getPropertyValue("--primary-text-color"),
         },
-        legend: {
-          ...this.options?.plugins?.legend,
-          display: false,
+        subtextStyle: {
+          color: style.getPropertyValue("--secondary-text-color"),
         },
       },
+      line: {
+        lineStyle: {
+          width: 1.5,
+        },
+        symbolSize: 1,
+        symbol: "circle",
+        smooth: false,
+      },
+      bar: {
+        itemStyle: {
+          barBorderWidth: 1.5,
+        },
+      },
+      categoryAxis: {
+        axisLine: {
+          show: false,
+        },
+        axisTick: {
+          show: false,
+        },
+        axisLabel: {
+          show: true,
+          color: style.getPropertyValue("--primary-text-color"),
+        },
+        splitLine: {
+          show: false,
+          lineStyle: {
+            color: style.getPropertyValue("--divider-color"),
+          },
+        },
+        splitArea: {
+          show: false,
+          areaStyle: {
+            color: [
+              style.getPropertyValue("--divider-color") + "3F",
+              style.getPropertyValue("--divider-color") + "7F",
+            ],
+          },
+        },
+      },
+      valueAxis: {
+        axisLine: {
+          show: true,
+          lineStyle: {
+            color: style.getPropertyValue("--divider-color"),
+          },
+        },
+        axisTick: {
+          show: true,
+          lineStyle: {
+            color: style.getPropertyValue("--divider-color"),
+          },
+        },
+        axisLabel: {
+          show: true,
+          color: style.getPropertyValue("--primary-text-color"),
+        },
+        splitLine: {
+          show: true,
+          lineStyle: {
+            color: style.getPropertyValue("--divider-color"),
+          },
+        },
+        splitArea: {
+          show: false,
+          areaStyle: {
+            color: [
+              style.getPropertyValue("--divider-color") + "3F",
+              style.getPropertyValue("--divider-color") + "7F",
+            ],
+          },
+        },
+      },
+      logAxis: {
+        axisLine: {
+          show: true,
+          lineStyle: {
+            color: style.getPropertyValue("--divider-color"),
+          },
+        },
+        axisTick: {
+          show: true,
+          lineStyle: {
+            color: style.getPropertyValue("--divider-color"),
+          },
+        },
+        axisLabel: {
+          show: true,
+          color: style.getPropertyValue("--primary-text-color"),
+        },
+        splitLine: {
+          show: true,
+          lineStyle: {
+            color: style.getPropertyValue("--divider-color"),
+          },
+        },
+        splitArea: {
+          show: false,
+          areaStyle: {
+            color: [
+              style.getPropertyValue("--divider-color") + "3F",
+              style.getPropertyValue("--divider-color") + "7F",
+            ],
+          },
+        },
+      },
+      timeAxis: {
+        axisLine: {
+          show: true,
+          lineStyle: {
+            color: style.getPropertyValue("--divider-color"),
+          },
+        },
+        axisTick: {
+          show: true,
+          lineStyle: {
+            color: style.getPropertyValue("--divider-color"),
+          },
+        },
+        axisLabel: {
+          show: true,
+          color: style.getPropertyValue("--primary-text-color"),
+        },
+        splitLine: {
+          show: true,
+          lineStyle: {
+            color: style.getPropertyValue("--divider-color"),
+          },
+        },
+        splitArea: {
+          show: false,
+          areaStyle: {
+            color: [
+              style.getPropertyValue("--divider-color") + "3F",
+              style.getPropertyValue("--divider-color") + "7F",
+            ],
+          },
+        },
+      },
+      legend: {
+        textStyle: {
+          color: style.getPropertyValue("--primary-text-color"),
+        },
+        inactiveColor: style.getPropertyValue("--disabled-text-color"),
+      },
+      tooltip: {
+        axisPointer: {
+          lineStyle: {
+            color: style.getPropertyValue("--divider-color"),
+          },
+          crossStyle: {
+            color: style.getPropertyValue("--divider-color"),
+          },
+        },
+      },
+      timeline: {},
     };
   }
 
-  private _createPlugins() {
-    return [
-      ...(this.plugins || []),
-      {
-        id: "resizeHook",
-        resize: (chart) => {
-          const change = chart.height - (this._chartHeight ?? 0);
-          if (!this._chartHeight || change > 12 || change < -12) {
-            // hysteresis to prevent infinite render loops
-            this._chartHeight = chart.height;
-          }
-        },
-        legend: {
-          ...this.options?.plugins?.legend,
-          display: false,
-        },
-      },
-    ];
+  private _getDefaultHeight() {
+    return Math.max(this.clientWidth / 2, 300);
   }
 
-  private _legendClick(ev) {
-    if (!this.chart) {
-      return;
-    }
-    const index = ev.currentTarget.datasetIndex;
-    if (this.chart.isDatasetVisible(index)) {
-      this.chart.setDatasetVisibility(index, false);
-      this._hiddenDatasets.add(index);
-      if (this.externalHidden) {
-        fireEvent(this, "dataset-hidden", {
-          index,
-        });
+  private _handleZoomReset() {
+    this.chart?.dispatchAction({ type: "dataZoom", start: 0, end: 100 });
+  }
+
+  private _handleWheel(e: WheelEvent) {
+    // if the window is not focused, we don't receive the keydown events but scroll still works
+    if (!this.options?.dataZoom) {
+      const modifierPressed = (isMac && e.metaKey) || (!isMac && e.ctrlKey);
+      if (modifierPressed) {
+        e.preventDefault();
       }
-    } else {
-      this.chart.setDatasetVisibility(index, true);
-      this._hiddenDatasets.delete(index);
-      if (this.externalHidden) {
-        fireEvent(this, "dataset-unhidden", {
-          index,
+      if (modifierPressed !== this._modifierPressed) {
+        this._modifierPressed = modifierPressed;
+        this.chart?.setOption({
+          dataZoom: this._getDataZoomConfig(),
         });
       }
     }
-    this.chart.update("none");
-    this.requestUpdate("_hiddenDatasets");
   }
 
-  private _handleTooltip(context: {
-    chart: Chart;
-    tooltip: TooltipModel<any>;
-  }) {
-    if (context.tooltip.opacity === 0) {
-      this._tooltip = undefined;
-      return;
+  static styles = css`
+    :host {
+      display: block;
+      position: relative;
     }
-    this._tooltip = {
-      ...context.tooltip,
-      top: this.chart!.canvas.offsetTop + context.tooltip.caretY + 12 + "px",
-      left:
-        this.chart!.canvas.offsetLeft +
-        clamp(
-          context.tooltip.caretX,
-          100,
-          this.clientWidth - 100 - this._paddingYAxisInternal
-        ) -
-        100 +
-        "px",
-    };
-  }
-
-  private _releaseCanvas() {
-    // release the canvas memory to prevent
-    // safari from running out of memory.
-    if (this.chart) {
-      this.chart.destroy();
+    .chart-container {
+      position: relative;
+      max-height: var(--chart-max-height, 300px);
     }
-  }
-
-  static get styles(): CSSResultGroup {
-    return css`
-      :host {
-        display: block;
-        position: var(--chart-base-position, relative);
-      }
-      .animationContainer {
-        overflow: hidden;
-        height: 0;
-        transition: height 300ms cubic-bezier(0.4, 0, 0.2, 1);
-      }
-      canvas {
-        max-height: var(--chart-max-height, 400px);
-      }
-      .chartLegend {
-        text-align: center;
-      }
-      .chartLegend li {
-        cursor: pointer;
-        display: inline-grid;
-        grid-auto-flow: column;
-        padding: 0 8px;
-        box-sizing: border-box;
-        align-items: center;
-        color: var(--secondary-text-color);
-      }
-      .chartLegend .hidden {
-        text-decoration: line-through;
-      }
-      .chartLegend .label {
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        overflow: hidden;
-      }
-      .chartLegend .bullet,
-      .chartTooltip .bullet {
-        border-width: 1px;
-        border-style: solid;
-        border-radius: 50%;
-        display: inline-block;
-        height: 16px;
-        margin-right: 6px;
-        width: 16px;
-        flex-shrink: 0;
-        box-sizing: border-box;
-        margin-inline-end: 6px;
-        margin-inline-start: initial;
-        direction: var(--direction);
-      }
-      .chartTooltip .bullet {
-        align-self: baseline;
-      }
-      .chartTooltip {
-        padding: 8px;
-        font-size: 90%;
-        position: absolute;
-        background: rgba(80, 80, 80, 0.9);
-        color: white;
-        border-radius: 4px;
-        pointer-events: none;
-        z-index: 1;
-        -ms-user-select: none;
-        -webkit-user-select: none;
-        -moz-user-select: none;
-        width: 200px;
-        box-sizing: border-box;
-        direction: var(--direction);
-      }
-      .chartLegend ul,
-      .chartTooltip ul {
-        display: inline-block;
-        padding: 0 0px;
-        margin: 8px 0 0 0;
-        width: 100%;
-      }
-      .chartTooltip ul {
-        margin: 0 4px;
-      }
-      .chartTooltip li {
-        display: flex;
-        white-space: pre-line;
-        word-break: break-word;
-        align-items: center;
-        line-height: 16px;
-        padding: 4px 0;
-      }
-      .chartTooltip .title {
-        text-align: center;
-        font-weight: 500;
-        word-break: break-word;
-        direction: ltr;
-      }
-      .chartTooltip .footer {
-        font-weight: 500;
-      }
-      .chartTooltip .beforeBody {
-        text-align: center;
-        font-weight: 300;
-        word-break: break-all;
-      }
-    `;
-  }
+    .chart {
+      width: 100%;
+      height: 100%;
+    }
+    .zoom-reset {
+      position: absolute;
+      top: 16px;
+      right: 4px;
+      background: var(--card-background-color);
+      border-radius: 4px;
+      --mdc-icon-button-size: 32px;
+      color: var(--primary-color);
+      border: 1px solid var(--divider-color);
+    }
+  `;
 }
 
 declare global {
@@ -548,7 +493,8 @@ declare global {
     "ha-chart-base": HaChartBase;
   }
   interface HASSDomEvents {
-    "dataset-hidden": { index: number };
-    "dataset-unhidden": { index: number };
+    "dataset-hidden": { name: string };
+    "dataset-unhidden": { name: string };
+    "chart-click": ECElementEvent;
   }
 }

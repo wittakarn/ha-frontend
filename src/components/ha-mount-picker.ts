@@ -1,5 +1,6 @@
 import { mdiBackupRestore, mdiFolder, mdiHarddisk, mdiPlayBox } from "@mdi/js";
-import { html, LitElement, nothing } from "lit";
+import type { CSSResultGroup } from "lit";
+import { css, html, LitElement, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators";
 import memoizeOne from "memoize-one";
 import { isComponentLoaded } from "../common/config/is_component_loaded";
@@ -145,7 +146,7 @@ class HaMountPicker extends LitElement {
           "ui.components.mount-picker.error.no_supervisor"
         );
       }
-    } catch (err: any) {
+    } catch (_err: any) {
       this._error = this.hass.localize(
         "ui.components.mount-picker.error.fetch_mounts"
       );
@@ -172,6 +173,16 @@ class HaMountPicker extends LitElement {
       fireEvent(this, "value-changed", { value });
       fireEvent(this, "change");
     }, 0);
+  }
+
+  static get styles(): CSSResultGroup {
+    return [
+      css`
+        ha-select {
+          width: 100%;
+        }
+      `,
+    ];
   }
 }
 

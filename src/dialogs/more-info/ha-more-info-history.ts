@@ -1,16 +1,12 @@
 import { startOfYesterday, subHours } from "date-fns";
 import type { PropertyValues } from "lit";
 import { LitElement, css, html, nothing } from "lit";
-import { customElement, property, query, state } from "lit/decorators";
+import { customElement, property, state } from "lit/decorators";
 import { isComponentLoaded } from "../../common/config/is_component_loaded";
-import { fireEvent } from "../../common/dom/fire_event";
 import { computeDomain } from "../../common/entity/compute_domain";
 import { createSearchParam } from "../../common/url/search-params";
-import type { ChartResizeOptions } from "../../components/chart/ha-chart-base";
 import "../../components/chart/state-history-charts";
-import type { StateHistoryCharts } from "../../components/chart/state-history-charts";
 import "../../components/chart/statistics-chart";
-import type { StatisticsChart } from "../../components/chart/statistics-chart";
 import type { HistoryResult } from "../../data/history";
 import {
   computeHistory,
@@ -49,21 +45,11 @@ export class MoreInfoHistory extends LitElement {
 
   private _interval?: number;
 
-  private _subscribed?: Promise<(() => Promise<void>) | void>;
+  private _subscribed?: Promise<(() => Promise<void>) | undefined>;
 
   private _error?: string;
 
   private _metadata?: Record<string, StatisticsMetaData>;
-
-  @query("statistics-chart, state-history-charts") private _chart?:
-    | StateHistoryCharts
-    | StatisticsChart;
-
-  public resize = (options?: ChartResizeOptions): void => {
-    if (this._chart) {
-      this._chart.resize(options);
-    }
-  };
 
   protected render() {
     if (!this.entityId) {
@@ -77,7 +63,7 @@ export class MoreInfoHistory extends LitElement {
             </div>
             ${__DEMO__
               ? nothing
-              : html`<a href=${this._showMoreHref} @click=${this._close}
+              : html`<a href=${this._showMoreHref}
                   >${this.hass.localize(
                     "ui.dialogs.more_info_control.show_more"
                   )}</a
@@ -240,12 +226,9 @@ export class MoreInfoHistory extends LitElement {
     ).catch((err) => {
       this._subscribed = undefined;
       this._error = err;
+      return undefined;
     });
     this._setRedrawTimer();
-  }
-
-  private _close(): void {
-    setTimeout(() => fireEvent(this, "close-dialog"), 500);
   }
 
   static styles = css`

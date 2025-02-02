@@ -50,7 +50,7 @@ class DialogCalendarEventDetail extends LitElement {
     }
   }
 
-  private _closeDialog(): void {
+  public closeDialog(): void {
     this._calendarId = undefined;
     this._params = undefined;
     fireEvent(this, "dialog-closed", { dialog: this.localName });
@@ -64,7 +64,7 @@ class DialogCalendarEventDetail extends LitElement {
     return html`
       <ha-dialog
         open
-        @closed=${this._closeDialog}
+        @closed=${this.closeDialog}
         scrimClickAction
         escapeKeyAction
         .heading=${createCloseHeading(this.hass, this._data!.summary)}
@@ -132,7 +132,7 @@ class DialogCalendarEventDetail extends LitElement {
         return html`<div id="text">${ruleText}</div>`;
       }
       return html`<div id="text">Cannot convert recurrence rule</div>`;
-    } catch (e) {
+    } catch (_e) {
       return "Error while processing the rule";
     }
   }
@@ -177,7 +177,7 @@ class DialogCalendarEventDetail extends LitElement {
 
   private async _editEvent() {
     showCalendarEventEditDialog(this, this._params!);
-    this._closeDialog();
+    this.closeDialog();
   }
 
   private async _deleteEvent() {
@@ -227,7 +227,7 @@ class DialogCalendarEventDetail extends LitElement {
       this._submitting = false;
     }
     await this._params!.updated();
-    this._closeDialog();
+    this.closeDialog();
   }
 
   static get styles(): CSSResultGroup {
