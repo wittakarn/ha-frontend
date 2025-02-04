@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Home Assistant</title>
+    <title>Selsys</title>
     <%= renderTemplate("_header.html.template") %>
     <link rel="mask-icon" href="/static/icons/mask-icon.svg" color="#18bcf2" />
     <link
@@ -68,10 +68,10 @@
   <body>
     <div id="ha-launch-screen">
       <div class="ha-launch-screen-spacer-top"></div>
-      <img src="/static/icons/favicon-192x192.png" alt="Home Assistant">
+      <img src="/static/icons/favicon-192x192.png" alt="Selsys">
       <div id="ha-launch-screen-info-box" class="ha-launch-screen-spacer-bottom"></div>
       <div class="ohf-logo">
-        <img src="/static/images/ohf-badge.svg" alt="Home Assistant is a project by the Open Home Foundation" height="46">
+        <img src="/static/images/ohf-badge.svg" alt="Selsys is a project by the Open Home Foundation" height="46">
       </div>
     </div>
     <home-assistant></home-assistant>
