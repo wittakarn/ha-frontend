@@ -1,6 +1,6 @@
 # Home Assistant Frontend
 
-This is the repository for the official [Home Assistant](https://home-assistant.io) frontend.
+This is the repository for the official [Home Assistant](https://home-assistant.io) frontend, which work well with ha version: sha256:a8aab945aec2f43eb1b1fde4d19e25ef952fab9c10f49e40d3b3ce7d24cedc19.
 
 [![Screenshot of the frontend](https://raw.githubusercontent.com/home-assistant/frontend/master/docs/screenshot.png)](https://demo.home-assistant.io/)
 
