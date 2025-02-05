@@ -1,10 +1,5 @@
 import "@material/mwc-button/mwc-button";
-import {
-  mdiChevronDown,
-  mdiClose,
-  mdiHelpCircleOutline,
-  mdiStar,
-} from "@mdi/js";
+import { mdiChevronDown, mdiClose, mdiStar } from "@mdi/js";
 import type { CSSResultGroup, PropertyValues } from "lit";
 import { css, html, LitElement, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators";
@@ -27,7 +22,6 @@ import {
 } from "../../data/assist_pipeline";
 import { haStyleDialog } from "../../resources/styles";
 import type { HomeAssistant } from "../../types";
-import { documentationUrl } from "../../util/documentation-url";
 import type { VoiceCommandDialogParams } from "./show-ha-voice-command-dialog";
 
 @customElement("ha-voice-command-dialog")
@@ -105,7 +99,9 @@ export class HaVoiceCommandDialog extends LitElement {
               fixed
             >
               <ha-button slot="trigger">
-                ${this._pipeline?.name}
+                ${this._pipeline?.name === "Home Assistant"
+                  ? "Selsys Assistant"
+                  : this._pipeline?.name}
                 <ha-svg-icon
                   slot="trailingIcon"
                   .path=${mdiChevronDown}
@@ -128,7 +124,9 @@ export class HaVoiceCommandDialog extends LitElement {
                         @click=${this._selectPipeline}
                         .hasMeta=${pipeline.id === this._preferredPipeline}
                       >
-                        ${pipeline.name}${pipeline.id ===
+                        ${this._pipeline?.name === "Home Assistant"
+                          ? "Selsys Assistant"
+                          : this._pipeline?.name}${pipeline.id ===
                         this._preferredPipeline
                           ? html`
                               <ha-svg-icon
@@ -151,17 +149,6 @@ export class HaVoiceCommandDialog extends LitElement {
                 : nothing}
             </ha-button-menu>
           </div>
-          <a
-            href=${documentationUrl(this.hass, "/docs/assist/")}
-            slot="actionItems"
-            target="_blank"
-            rel="noopener noreferer"
-          >
-            <ha-icon-button
-              .label=${this.hass.localize("ui.common.help")}
-              .path=${mdiHelpCircleOutline}
-            ></ha-icon-button>
-          </a>
         </ha-dialog-header>
 
         ${this._errorLoadAssist
