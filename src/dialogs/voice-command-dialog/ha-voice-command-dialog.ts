@@ -100,7 +100,7 @@ export class HaVoiceCommandDialog extends LitElement {
             >
               <ha-button slot="trigger">
                 ${this._pipeline?.name === "Home Assistant"
-                  ? "Selsys Assistant"
+                  ? "Setron Assistant"
                   : this._pipeline?.name}
                 <ha-svg-icon
                   slot="trailingIcon"
@@ -125,7 +125,7 @@ export class HaVoiceCommandDialog extends LitElement {
                         .hasMeta=${pipeline.id === this._preferredPipeline}
                       >
                         ${this._pipeline?.name === "Home Assistant"
-                          ? "Selsys Assistant"
+                          ? "Setron Assistant"
                           : this._pipeline?.name}${pipeline.id ===
                         this._preferredPipeline
                           ? html`

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Selsys Demo</title>
+    <title>Setron Demo</title>
     <%= renderTemplate("../../../src/html/_header.html.template") %>
     <link rel="mask-icon" href="/static/icons/mask-icon.svg" color="#03a9f4" />
     <link
